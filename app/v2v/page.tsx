@@ -3,7 +3,7 @@ import React from "react";
 import { Button } from "@/components/ui/button";
 import ApiModal from "@/components/ApiModal";
 import useGeminiLive from "@/hooks/useGeminiLive";
-import { Mic, StopCircle, RefreshCw, Key, Video } from "lucide-react";
+import { Mic, StopCircle, RefreshCw, Key } from "lucide-react";
 
 function Page() {
   const [isModalOpen, setIsModalOpen] = React.useState(false);
@@ -138,7 +138,7 @@ function Page() {
       <div className="mt-8 text-sm text-gray-600 space-y-1 text-center">
         <div>Status: {isRecording ? "🔴 Recording" : "⏸️ Stopped"}</div>
         <div>Mode: Audio + Video</div>
-        <div>Video: 3fps capture</div>
+        <div>Video: 1fps capture</div>
         {isInitialized && (
           <div className="text-green-600 font-medium">
             ✅ Client Initialized

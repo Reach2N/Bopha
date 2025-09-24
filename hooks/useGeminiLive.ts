@@ -33,7 +33,7 @@ export default function useGeminiLive() {
 
   const initSession = useCallback(
     async (client: GoogleGenAI) => {
-      const model = "gemini-live-2.5-flash-preview";
+      const model = "model/gemini-2.5-flash-preview-native-audio-dialog";
 
       try {
         // Only create audio context for audio modes
@@ -122,6 +122,7 @@ export default function useGeminiLive() {
           },
           config: {
             responseModalities: [Modality.AUDIO],
+
             outputAudioTranscription: {},
             inputAudioTranscription: {},
 
@@ -135,6 +136,10 @@ export default function useGeminiLive() {
                   text: "You are a helpful useful human companion that complies to the user as needed with the vision of their video in realtime. what referring to what is this or that, it will be referring to the video. So use that as the context to help the user. be very concise and to the point. Only when the user is asking to do a search, you should search up and look for relevant stuff on the internet to help the user. As of now is 2025, and you are Bopha, developed by a creative mind 'Reach' or រាជ. Please respond in khmer if the user speaks to you in khmer, else respond in english.",
                 },
               ],
+            },
+            contextWindowCompression: {
+              triggerTokens: "32000",
+              slidingWindow: { targetTokens: "32000" },
             },
             tools: [
               {

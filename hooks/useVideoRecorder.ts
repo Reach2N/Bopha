@@ -12,7 +12,7 @@ export default function useVideoRecorder() {
   const lastCaptureTimeRef = useRef<number>(0);
   const onDataCallbackRef = useRef<((data: any) => void) | null>(null);
 
-  const captureFrame = useCallback(() => {
+  const captureFrame = useCallback(async () => {
     if (
       !canvasRef.current ||
       !videoElementRef.current ||
@@ -43,14 +43,26 @@ export default function useVideoRecorder() {
 
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-    // Use synchronous toDataURL instead of async toBlob for better real-time performance
+    // Use blob for better performance and memory management
     try {
-      const dataUrl = canvas.toDataURL("image/jpeg"); // Lower quality for speed
-      const base64 = dataUrl.split(",")[1];
-      onDataCallbackRef.current?.({
-        data: base64,
-        mimeType: "image/jpeg",
-      });
+      canvas.toBlob(
+        (blob) => {
+          if (blob && onDataCallbackRef.current) {
+            // Convert blob to base64 for Gemini API
+            const reader = new FileReader();
+            reader.onload = () => {
+              const base64 = (reader.result as string).split(",")[1];
+              onDataCallbackRef.current?.({
+                data: base64,
+                mimeType: "image/jpeg",
+              });
+            };
+            reader.readAsDataURL(blob);
+          }
+        },
+        "image/jpeg",
+        0.8 // Better quality for 1fps
+      );
     } catch (error) {
       console.error("Frame capture error:", error);
     }
@@ -58,7 +70,7 @@ export default function useVideoRecorder() {
 
   const captureLoop = useCallback(() => {
     const now = performance.now();
-    const targetFrameTime = 300; // 10fps for real-time balance (100ms between frames)
+    const targetFrameTime = 1000; // 1fps (1000ms between frames)
 
     if (now - lastCaptureTimeRef.current >= targetFrameTime) {
       captureFrame();
@@ -80,9 +92,10 @@ export default function useVideoRecorder() {
         mediaStreamRef.current = await navigator.mediaDevices.getUserMedia({
           audio: false,
           video: {
-            width: { ideal: 1280, min: 640 },
-            height: { ideal: 720, min: 480 },
-            frameRate: { ideal: 30, max: 30 },
+            width: { ideal: 1280, min: 640, max: 1920 },
+            height: { ideal: 720, min: 480, max: 1080 },
+            frameRate: { ideal: 30, max: 60 }, // Higher for smooth preview
+            facingMode: "user", // Front camera by default
           },
         });
 
