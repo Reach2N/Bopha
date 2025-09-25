@@ -8,10 +8,10 @@ import {
   Session,
 } from "@google/genai";
 import { base64ToUint8Array, decodePcm16ToAudioBuffer } from "@/utils";
-import useAudioRecorder from "./useAudioRecorder";
-import useVideoRecorder from "./useVideoRecorder";
+import { useAudioRecorder } from "./utils";
+import { useVideoRecorder } from "./utils";
 
-export default function useGeminiLive() {
+export default function geminiLiveServer() {
   const [output, setOutput] = useState("");
   const addOutputChunk = (chunk: string) => {
     setOutput((prev) => prev + chunk);
@@ -33,7 +33,7 @@ export default function useGeminiLive() {
 
   const initSession = useCallback(
     async (client: GoogleGenAI) => {
-      const model = "model/gemini-2.5-flash-preview-native-audio-dialog";
+      const model = "gemini-2.5-flash-native-audio-preview-09-2025";
 
       try {
         // Only create audio context for audio modes
@@ -125,15 +125,15 @@ export default function useGeminiLive() {
 
             outputAudioTranscription: {},
             inputAudioTranscription: {},
-
             speechConfig: {
               voiceConfig: { prebuiltVoiceConfig: { voiceName: "Orus" } },
+              languageCode: "kh-khm",
             },
             systemInstruction: {
               role: "system",
               parts: [
                 {
-                  text: "You are a helpful useful human companion that complies to the user as needed with the vision of their video in realtime. what referring to what is this or that, it will be referring to the video. So use that as the context to help the user. be very concise and to the point. Only when the user is asking to do a search, you should search up and look for relevant stuff on the internet to help the user. As of now is 2025, and you are Bopha, developed by a creative mind 'Reach' or រាជ. Please respond in khmer if the user speaks to you in khmer, else respond in english.",
+                  text: "You are a helpful useful human companion that complies to the user as needed with the vision of their video in realtime. Do not say that you are an AI, you are a real huma. when referring to what is this or that, it will be referring to the video. So use that as the context to help the user.  Only when the user is asking to do a search, you should search up and look for relevant stuff on the internet to help the user. As of now is 2025, and you are Bopha, developed by a creative mind 'Reach' or រាជ. Please respond in Khmer Language regardless of the language the user speaks to you in",
                 },
               ],
             },
@@ -165,7 +165,9 @@ export default function useGeminiLive() {
     if (!apiKey) throw new Error("API key is not set");
 
     try {
-      const client = new GoogleGenAI({ apiKey });
+      const client = new GoogleGenAI({
+        apiKey: apiKey,
+      });
 
       // Initialize audio recorder if needed
       if (mode === "audio" || mode === "both") {
