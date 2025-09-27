@@ -131,6 +131,7 @@ export default function geminiLiveServer() {
             inputAudioTranscription: {},
             speechConfig: {
               voiceConfig: { prebuiltVoiceConfig: { voiceName: "Orus" } },
+              languageCode: "kh-khm",
             },
             systemInstruction: {
               role: "system",
