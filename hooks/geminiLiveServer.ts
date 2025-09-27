@@ -119,9 +119,32 @@ export default function geminiLiveServer() {
             },
             onerror: (e: ErrorEvent) => {
               console.error("Session error:", e.message);
+              // Use the proper stopRecording function to ensure all states are updated
+              setTimeout(() => {
+                if (isRecording) {
+                  console.log("Force stopping recording due to session error");
+                  // Force stop all recording
+                  audioRecorder.stop();
+                  videoRecorder.stop();
+                  setIsRecording(false);
+                }
+              }, 100);
+              // Close session to stop WebSocket spam
+              if (sessionRef.current) {
+                sessionRef.current.close();
+                sessionRef.current = null;
+              }
             },
             onclose: (e: CloseEvent) => {
               console.log("Session closed:", e.reason);
+              // Use timeout to ensure state updates properly
+              setTimeout(() => {
+                if (isRecording) {
+                  console.log("Force stopping recording due to session close");
+                  setIsRecording(false);
+                }
+              }, 100);
+              sessionRef.current = null;
             },
           },
           config: {

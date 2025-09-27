@@ -9,6 +9,7 @@
 
 import {LitElement, css, html} from 'lit';
 import {Analyser} from './analyser';
+import {FaceTracker} from './face-tracker';
 
 import * as THREE from 'three';
 // Post-processing imports removed for performance
@@ -32,16 +33,20 @@ export class Orb3D extends LitElement {
   private renderer!: THREE.WebGLRenderer;
   private scene!: THREE.Scene;
   private sphere!: THREE.Mesh;
-  private prevTime = 0;
+  private leftEye!: THREE.Mesh;
+  private rightEye!: THREE.Mesh;
   private rotation = new THREE.Vector3(0, 0, 0);
-  private frameSkipCounter = 0;
-  private targetFrameRate = 60;
-  private frameInterval = 1000 / this.targetFrameRate;
+  private eyeTarget = new THREE.Vector3(0, 0, 1);
+  private wanderTime = 0;
+  private faceTracker: FaceTracker | null = null;
+  private facePosition = { x: 0, y: 0, detected: false };
+  private isTracking = false;
 
   static properties = {
     outputNode: {type: Object},
     inputNode: {type: Object},
-    videoStream: {type: Object}
+    videoStream: {type: Object},
+    isRecording: {type: Boolean}
   };
 
   get outputNode() {
@@ -51,6 +56,8 @@ export class Orb3D extends LitElement {
     this._outputNode = node;
     if (node && node.numberOfOutputs > 0) {
       this.outputAnalyser = new Analyser(node);
+    } else {
+      this.outputAnalyser = null as any;
     }
   }
   private _outputNode: AudioNode | null = null;
@@ -62,6 +69,8 @@ export class Orb3D extends LitElement {
     this._inputNode = node;
     if (node && node.numberOfOutputs > 0) {
       this.inputAnalyser = new Analyser(node);
+    } else {
+      this.inputAnalyser = null as any;
     }
   }
   private _inputNode: AudioNode | null = null;
@@ -71,9 +80,21 @@ export class Orb3D extends LitElement {
   }
   set videoStream(stream: MediaStream | null) {
     this._videoStream = stream;
-    // Video stream can be used for additional visual effects if needed
+    if (stream && !this.faceTracker) {
+      this.setupFaceTracking(stream);
+    }
   }
   private _videoStream: MediaStream | null = null;
+
+  get isRecording() {
+    return this._isRecording;
+  }
+  set isRecording(recording: boolean) {
+    this._isRecording = recording;
+    this.isTracking = recording;
+  }
+  private _isRecording: boolean = false;
+
 
   private canvas!: HTMLCanvasElement;
 
@@ -190,8 +211,10 @@ export class Orb3D extends LitElement {
 
     const sphere = new THREE.Mesh(geometry, sphereMaterial);
     scene.add(sphere);
-
     this.sphere = sphere;
+
+    // Create robot eyes
+    this.createRobotEyes(scene);
 
     // Post-processing disabled for performance - keeping direct rendering
 
@@ -214,53 +237,59 @@ export class Orb3D extends LitElement {
     requestAnimationFrame(() => this.animation());
 
     const t = performance.now();
-    const deltaTime = t - this.prevTime;
-
-    // Frame rate limiting for better performance
-    if (deltaTime < this.frameInterval) {
-      return;
-    }
-
-    const dt = deltaTime / (1000 / 60);
-    this.prevTime = t - (deltaTime % this.frameInterval);
+    const dt = 0.016; // Fixed 60fps timing
     const sphereMaterial = this.sphere.material as THREE.MeshPhysicalMaterial;
 
     // Get audio data or use fallback values
     let inputData = [0.1, 0.1, 0.1, 0.1];
     let outputData = [0.1, 0.1, 0.1, 0.1];
 
-    if (this.inputAnalyser) {
+    if (this.inputAnalyser && this.inputAnalyser.isConnected) {
       this.inputAnalyser.update();
       inputData = Array.from(this.inputAnalyser.data);
     }
-    
-    if (this.outputAnalyser) {
+
+    if (this.outputAnalyser && this.outputAnalyser.isConnected) {
       this.outputAnalyser.update();
       outputData = Array.from(this.outputAnalyser.data);
     }
 
     if (sphereMaterial.userData.shader) {
-      // Optimize scaling with frame skipping for smooth performance
-      this.frameSkipCounter++;
-      if (this.frameSkipCounter % 2 === 0) { // Skip every other frame for scaling
-        const scaleFactor = this.outputAnalyser ?
-          1 + (0.2 * outputData[1]) / 255 :
-          1 + 0.1 * Math.sin(t * 0.001);
-        this.sphere.scale.setScalar(scaleFactor);
+      // Scale based on audio with smooth transitions and connection states
+      const hasInputAudio = this.inputAnalyser && this.inputAnalyser.isConnected;
+      const hasOutputAudio = this.outputAnalyser && this.outputAnalyser.isConnected;
+
+      let scaleFactor;
+      if (hasInputAudio || hasOutputAudio) {
+        // Connected state - responsive to audio
+        const inputLevel = hasInputAudio ? inputData[1] / 255 : 0;
+        const outputLevel = hasOutputAudio ? outputData[1] / 255 : 0;
+        const combinedLevel = Math.max(inputLevel, outputLevel);
+        scaleFactor = 1 + (combinedLevel * 0.3);
+      } else {
+        // Idle state - gentle breathing
+        scaleFactor = 1 + 0.05 * Math.sin(t * 0.002);
       }
 
-      // Rotate the camera based on audio data
-      const f = 0.001;
+      // Smooth scaling transition
+      const currentScale = this.sphere.scale.x;
+      const newScale = currentScale + (scaleFactor - currentScale) * 0.08;
+      this.sphere.scale.setScalar(newScale);
+
+      // Update eye animations
+      this.updateEyes();
+
+      // Rotate the camera based on audio data - simplified
+      const f = 0.0005;
       if (this.inputAnalyser && this.outputAnalyser) {
-        this.rotation.x += (dt * f * 0.5 * outputData[1]) / 255;
-        this.rotation.z += (dt * f * 0.5 * inputData[1]) / 255;
-        this.rotation.y += (dt * f * 0.25 * inputData[2]) / 255;
-        this.rotation.y += (dt * f * 0.25 * outputData[2]) / 255;
+        this.rotation.x += f * outputData[1] / 255;
+        this.rotation.z += f * inputData[1] / 255;
+        this.rotation.y += f * 0.5 * (inputData[2] + outputData[2]) / 255;
       } else {
-        // Fallback rotation when no audio
-        this.rotation.x += dt * f * 0.1;
-        this.rotation.y += dt * f * 0.05;
-        this.rotation.z += dt * f * 0.08;
+        // Gentle rotation when no audio
+        this.rotation.x += f * 0.1;
+        this.rotation.y += f * 0.05;
+        this.rotation.z += f * 0.08;
       }
 
       const euler = new THREE.Euler(
@@ -274,11 +303,8 @@ export class Orb3D extends LitElement {
       this.camera.position.copy(vector);
       this.camera.lookAt(this.sphere.position);
 
-      // Update shader uniforms
-      sphereMaterial.userData.shader.uniforms.time.value += 
-        this.outputAnalyser ? 
-        (dt * 0.1 * outputData[0]) / 255 : 
-        dt * 0.001;
+      // Update shader uniforms - simplified
+      sphereMaterial.userData.shader.uniforms.time.value += dt * 0.01;
 
       sphereMaterial.userData.shader.uniforms.inputData.value.set(
         (1 * inputData[0]) / 255,
@@ -298,6 +324,142 @@ export class Orb3D extends LitElement {
     this.renderer.clearDepth();
     this.renderer.render(this.scene, this.camera);
   }
+
+  private createRobotEyes(scene: THREE.Scene) {
+    // Create eye geometry - tall and narrow like robot eyes
+    const eyeGeometry = new THREE.CapsuleGeometry(0.03, 0.15, 4, 8);
+    const eyeMaterial = new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      transparent: false,
+      opacity: 1.0
+    });
+
+    this.leftEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
+    this.rightEye = new THREE.Mesh(eyeGeometry, eyeMaterial.clone());
+
+    // Add glow effect with point lights
+    const leftGlow = new THREE.PointLight(0xffffff, 0.5, 1);
+    const rightGlow = new THREE.PointLight(0xffffff, 0.5, 1);
+
+    this.leftEye.add(leftGlow);
+    this.rightEye.add(rightGlow);
+
+    // Position eyes on sphere surface
+    this.positionEyesOnSphere();
+
+    scene.add(this.leftEye);
+    scene.add(this.rightEye);
+  }
+
+  private positionEyesOnSphere() {
+    // Get current sphere scale
+    const currentScale = this.sphere ? this.sphere.scale.x : 1;
+    const sphereRadius = 1 * currentScale;
+    const eyeDistance = 0.15; // Closer together
+
+    const baseDirection = new THREE.Vector3(0, 0.05, 1).normalize(); // More centered
+
+    const leftDirection = baseDirection.clone();
+    leftDirection.x -= eyeDistance / 2;
+    leftDirection.normalize().multiplyScalar(sphereRadius + 0.01);
+
+    const rightDirection = baseDirection.clone();
+    rightDirection.x += eyeDistance / 2;
+    rightDirection.normalize().multiplyScalar(sphereRadius + 0.01);
+
+    this.leftEye.position.copy(leftDirection);
+    this.rightEye.position.copy(rightDirection);
+
+    this.leftEye.lookAt(leftDirection.clone().multiplyScalar(2));
+    this.rightEye.lookAt(rightDirection.clone().multiplyScalar(2));
+  }
+
+  private updateEyes() {
+    if (this.isTracking && this.facePosition.detected) {
+      this.trackFace();
+    } else {
+      this.wanderEyes();
+    }
+  }
+
+  private trackFace() {
+    // Convert face position to 3D target on sphere
+    const target = new THREE.Vector3(
+      this.facePosition.x * 0.6, // Scale face movement
+      this.facePosition.y * 0.4,
+      1
+    ).normalize();
+
+    // Smooth tracking
+    this.eyeTarget.lerp(target, 0.15);
+    this.moveEyesToTarget();
+  }
+
+  private async setupFaceTracking(stream: MediaStream) {
+    try {
+      this.faceTracker = new FaceTracker();
+      await this.faceTracker.initialize(stream, (facePos) => {
+        this.facePosition = facePos;
+      });
+      console.log('Face tracking setup complete');
+    } catch (error) {
+      console.error('Face tracking setup failed:', error);
+    }
+  }
+
+  private wanderEyes() {
+    this.wanderTime += 0.01;
+
+    const wanderX = Math.sin(this.wanderTime * 0.7) * 0.3;
+    const wanderY = Math.cos(this.wanderTime * 0.5) * 0.2;
+
+    const newTarget = new THREE.Vector3(wanderX, wanderY, 1).normalize();
+    this.eyeTarget.lerp(newTarget, 0.02);
+    this.moveEyesToTarget();
+  }
+
+
+  private moveEyesToTarget() {
+    // Get current sphere scale to keep eyes on surface
+    const currentScale = this.sphere.scale.x;
+    const sphereRadius = 1 * currentScale;
+    const eyeDistance = 0.15; // Match the closer distance
+
+    const leftDirection = this.eyeTarget.clone();
+    leftDirection.x -= eyeDistance / 2;
+    leftDirection.normalize().multiplyScalar(sphereRadius + 0.02);
+
+    const rightDirection = this.eyeTarget.clone();
+    rightDirection.x += eyeDistance / 2;
+    rightDirection.normalize().multiplyScalar(sphereRadius + 0.02);
+
+    // Smoother eye movement
+    this.leftEye.position.lerp(leftDirection, 0.08);
+    this.rightEye.position.lerp(rightDirection, 0.08);
+
+    // Pure white glow based on activity
+    const hasInputAudio = this.inputAnalyser && this.inputAnalyser.isConnected;
+    const hasOutputAudio = this.outputAnalyser && this.outputAnalyser.isConnected;
+
+    let glowIntensity = 0.3; // Base white glow
+    if (hasInputAudio || hasOutputAudio) {
+      glowIntensity = 0.8; // Much brighter when active
+    }
+
+    // Update glow lights
+    const leftGlow = this.leftEye.children[0] as THREE.PointLight;
+    const rightGlow = this.rightEye.children[0] as THREE.PointLight;
+
+    if (leftGlow && rightGlow) {
+      leftGlow.intensity = glowIntensity;
+      rightGlow.intensity = glowIntensity;
+    }
+
+    const lookTarget = this.eyeTarget.clone().multiplyScalar(2);
+    this.leftEye.lookAt(lookTarget);
+    this.rightEye.lookAt(lookTarget);
+  }
+
 
   protected firstUpdated() {
     this.canvas = this.shadowRoot!.querySelector('canvas') as HTMLCanvasElement;
@@ -328,8 +490,10 @@ export class Orb3D extends LitElement {
   }
 }
 
-// Register the custom element
-customElements.define('gemini-orb-3d', Orb3D);
+// Register the custom element (only if not already defined)
+if (!customElements.get('gemini-orb-3d')) {
+  customElements.define('gemini-orb-3d', Orb3D);
+}
 
 declare global {
   interface HTMLElementTagNameMap {

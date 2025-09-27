@@ -78,8 +78,7 @@ export function useAudioRecorder() {
   );
 
   const stop = useCallback(() => {
-    if (!isRecording) return;
-
+    // Force stop even if state thinks it's not recording
     isRecordingRef.current = false;
     setIsRecording(false);
     onDataCallbackRef.current = null;

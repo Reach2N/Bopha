@@ -31,10 +31,9 @@ function Page() {
     reset,
     output,
     isRecording,
-    mode,
-    videoStream,
     inputNode,
     outputNode,
+    videoStream,
   } = useGeminiLive();
 
   React.useEffect(() => {
@@ -52,12 +51,20 @@ function Page() {
     if (orbRef.current) {
       const orbElement = orbRef.current.querySelector('gemini-orb-3d') as any;
       if (orbElement) {
-        if (inputNode) orbElement.inputNode = inputNode;
-        if (outputNode) orbElement.outputNode = outputNode;
-        if (videoStream) orbElement.videoStream = videoStream;
+        // Force refresh analyzers on every change
+        orbElement.inputNode = null;
+        orbElement.outputNode = null;
+
+        // Use small delay to ensure clean reconnection
+        setTimeout(() => {
+          if (inputNode) orbElement.inputNode = inputNode;
+          if (outputNode) orbElement.outputNode = outputNode;
+          if (videoStream) orbElement.videoStream = videoStream;
+          orbElement.isRecording = isRecording;
+        }, 50);
       }
     }
-  }, [videoStream, inputNode, outputNode]);
+  }, [inputNode, outputNode, videoStream, isRecording]);
   const handleInitClient = async () => {
     try {
       setError(null);
@@ -86,9 +93,9 @@ function Page() {
   };
 
   return (
-    <div className="flex flex-col items-center justify-end min-h-screen bg-white p-6 relative">
+    <div className="flex flex-col items-center justify-end min-h-screen max-h-screen bg-white p-6 relative">
       {/* Orb Sphere - Always visible, positioned below header */}
-      <div className="absolute z-0 top-20 left-0 right-0 bottom-0 w-full h-full pointer-events-none">
+      <div className="absolute z-0 top-0 left-0 right-0 bottom-0 w-full h-full pointer-events-none">
         <div ref={orbRef} className="w-full h-full"></div>
       </div>
       {/* API Key Button */}
