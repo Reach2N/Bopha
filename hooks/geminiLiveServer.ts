@@ -23,6 +23,7 @@ export default function geminiLiveServer() {
 
   const sessionRef = useRef<Session | null>(null);
   const outputAudioContextRef = useRef<AudioContext | null>(null);
+  const outputGainNodeRef = useRef<GainNode | null>(null);
 
   const audioRecorder = useAudioRecorder();
   const videoRecorder = useVideoRecorder();
@@ -39,9 +40,12 @@ export default function geminiLiveServer() {
         // Only create audio context for audio modes
         if (mode === "audio" || mode === "both") {
           outputAudioContextRef.current = new AudioContext();
+          // Create a gain node for output that can be used by the orb
+          outputGainNodeRef.current = outputAudioContextRef.current.createGain();
+          outputGainNodeRef.current.connect(outputAudioContextRef.current.destination);
         }
 
-        const outputNode = outputAudioContextRef.current?.destination;
+        const outputNode = outputGainNodeRef.current;
         // Reset audio playback state
         sourcesRef.current.clear();
         nextStartTimeRef.current = 0;
@@ -71,7 +75,7 @@ export default function geminiLiveServer() {
                 const source =
                   outputAudioContextRef.current.createBufferSource();
                 source.buffer = audioBuffer;
-                source.connect(outputNode);
+                source.connect(outputGainNodeRef.current!);
                 source.onended = () => sourcesRef.current.delete(source);
 
                 nextStartTimeRef.current = Math.max(
@@ -154,6 +158,7 @@ export default function geminiLiveServer() {
         if (outputAudioContextRef.current) {
           await outputAudioContextRef.current.close();
           outputAudioContextRef.current = null;
+          outputGainNodeRef.current = null;
         }
       }
     },
@@ -242,5 +247,7 @@ export default function geminiLiveServer() {
     mode,
     setMode,
     videoStream: videoRecorder.videoStream,
+    inputNode: audioRecorder.inputNodeRef?.current,
+    outputNode: outputGainNodeRef.current,
   };
 }

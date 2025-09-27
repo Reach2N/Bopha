@@ -99,5 +99,5 @@ export function useAudioRecorder() {
     sourceNodeRef.current = null;
   }, [isRecording]);
 
-  return { start, stop, isRecording, init };
+  return { start, stop, isRecording, init, inputNodeRef };
 }

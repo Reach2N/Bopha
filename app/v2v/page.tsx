@@ -5,10 +5,25 @@ import ApiModal from "@/components/ApiModal";
 import useGeminiLive from "@/hooks/geminiLiveServer";
 import { Mic, StopCircle, RefreshCw, Key } from "lucide-react";
 
+// Type declaration for custom elements
+declare global {
+  namespace JSX {
+    interface IntrinsicElements {
+      'gemini-orb-3d': React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement>;
+    }
+  }
+}
+
+// Simple one-time import
+if (typeof window !== "undefined") {
+  import("@/components/audio-visualizer/orb3d");
+}
+
 function Page() {
   const [isModalOpen, setIsModalOpen] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [isInitialized, setIsInitialized] = React.useState(false);
+  const orbRef = React.useRef<HTMLDivElement>(null);
   const {
     initClient,
     startRecording,
@@ -16,10 +31,32 @@ function Page() {
     reset,
     output,
     isRecording,
-    mode,
     videoStream,
+    inputNode,
+    outputNode,
   } = useGeminiLive();
 
+  React.useEffect(() => {
+    if (orbRef.current && typeof window !== 'undefined') {
+      // Only create if doesn't exist
+      if (!orbRef.current.querySelector('gemini-orb-3d')) {
+        const orbElement = document.createElement('gemini-orb-3d');
+        orbRef.current.appendChild(orbElement);
+      }
+    }
+  }, []); // Run only once
+
+  // Update orb with audio/video data when available
+  React.useEffect(() => {
+    if (orbRef.current) {
+      const orbElement = orbRef.current.querySelector('gemini-orb-3d') as any;
+      if (orbElement) {
+        if (inputNode) orbElement.inputNode = inputNode;
+        if (outputNode) orbElement.outputNode = outputNode;
+        if (videoStream) orbElement.videoStream = videoStream;
+      }
+    }
+  }, [videoStream, inputNode, outputNode]);
   const handleInitClient = async () => {
     try {
       setError(null);
@@ -48,11 +85,15 @@ function Page() {
   };
 
   return (
-    <div className="flex z-1000 flex-col items-center justify-center min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 p-6">
+    <div className="flex flex-col items-center justify-end min-h-screen bg-white p-6 relative">
+      {/* Orb Sphere - Always visible, positioned below header */}
+      <div className="absolute z-0 top-20 left-0 right-0 bottom-0 w-full h-full pointer-events-none">
+        <div ref={orbRef} className="w-full h-full"></div>
+      </div>
       {/* API Key Button */}
       <Button
         onClick={() => setIsModalOpen(true)}
-        className="mb-6 flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white"
+        className="mb-6 flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white relative z-10"
       >
         <Key className="w-4 h-4" /> Set API Key
       </Button>
@@ -66,45 +107,28 @@ function Page() {
       />
 
       {/* Transcription Output */}
-      <div className="w-full max-w-md mb-6">
+      <div className="w-full max-w-md mb-6 relative z-10">
         {output ? (
-          <div className="bg-white shadow rounded-2xl p-4 border">
+          <div className="bg-white/90 backdrop-blur-sm shadow rounded-2xl p-4 border">
             <h3 className="text-base font-semibold text-gray-800 mb-3">
               Live Transcription
             </h3>
-            <div className="bg-slate-50 rounded-lg p-3 max-h-60 overflow-y-auto">
+            <div className="bg-slate-50/80 rounded-lg p-3 max-h-60 overflow-y-auto">
               <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">
                 {output}
               </p>
             </div>
           </div>
         ) : (
-          <div className="bg-white shadow rounded-2xl p-6 border text-center text-gray-400">
+          <div className="bg-white/90 backdrop-blur-sm shadow rounded-2xl p-6 border text-center text-gray-400">
             <p>No transcription yet. Start recording to see live text here.</p>
           </div>
         )}
       </div>
 
-      {/* Video Preview */}
-      {(mode === "video" || mode === "both") && videoStream && (
-        <div className="relative mb-6 w-full max-w-md">
-          <video
-            ref={(el) => {
-              if (el) el.srcObject = videoStream;
-            }}
-            autoPlay
-            muted
-            playsInline
-            className="w-full rounded-2xl border shadow scale-x-[-1]"
-          />
-          <div className="absolute top-3 left-3 bg-red-500 text-white px-3 py-1 rounded-full text-xs shadow">
-            {isRecording ? "🔴 Recording" : "⏸️ Stopped"}
-          </div>
-        </div>
-      )}
 
       {/* Controls */}
-      <div className="flex flex-col gap-3 w-full max-w-md">
+      <div className="flex flex-col gap-3 w-full max-w-md relative z-10">
         {!isRecording ? (
           <Button
             onClick={handleStartRecording}
@@ -135,7 +159,7 @@ function Page() {
       </div>
 
       {/* Status */}
-      <div className="mt-8 text-sm text-gray-600 space-y-1 text-center">
+      <div className="mt-8 text-sm text-gray-600 space-y-1 text-center relative z-10">
         <div>Status: {isRecording ? "🔴 Recording" : "⏸️ Stopped"}</div>
 
         {isInitialized && (
