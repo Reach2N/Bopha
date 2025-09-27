@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState } from "react";
 import { createBlobFromFloat32 } from "@/utils";
 
-export default function useAudioRecorder() {
+export function useAudioRecorder() {
   const [isRecording, setIsRecording] = useState(false);
 
   const mediaStreamRef = useRef<MediaStream | null>(null);

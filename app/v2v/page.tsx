@@ -2,7 +2,7 @@
 import React from "react";
 import { Button } from "@/components/ui/button";
 import ApiModal from "@/components/ApiModal";
-import useGeminiLive from "@/hooks/useGeminiLive";
+import useGeminiLive from "@/hooks/geminiLiveServer";
 import { Mic, StopCircle, RefreshCw, Key } from "lucide-react";
 
 function Page() {
@@ -48,7 +48,7 @@ function Page() {
   };
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 p-6">
+    <div className="flex z-1000 flex-col items-center justify-center min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 p-6">
       {/* API Key Button */}
       <Button
         onClick={() => setIsModalOpen(true)}
@@ -95,7 +95,7 @@ function Page() {
             autoPlay
             muted
             playsInline
-            className="w-full rounded-2xl border shadow"
+            className="w-full rounded-2xl border shadow scale-x-[-1]"
           />
           <div className="absolute top-3 left-3 bg-red-500 text-white px-3 py-1 rounded-full text-xs shadow">
             {isRecording ? "🔴 Recording" : "⏸️ Stopped"}
@@ -137,8 +137,7 @@ function Page() {
       {/* Status */}
       <div className="mt-8 text-sm text-gray-600 space-y-1 text-center">
         <div>Status: {isRecording ? "🔴 Recording" : "⏸️ Stopped"}</div>
-        <div>Mode: Audio + Video</div>
-        <div>Video: 1fps capture</div>
+
         {isInitialized && (
           <div className="text-green-600 font-medium">
             ✅ Client Initialized

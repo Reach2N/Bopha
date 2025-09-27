@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from "react";
 
-export default function useVideoRecorder() {
+export function useVideoRecorder() {
   const [isRecording, setIsRecording] = useState(false);
   const [videoStream, setVideoStream] = useState<MediaStream | null>(null);
 
