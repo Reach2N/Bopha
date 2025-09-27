@@ -127,23 +127,7 @@ function Page() {
         )}
       </div>
 
-      {/* Video Preview */}
-      {(mode === "video" || mode === "both") && videoStream && (
-        <div className="relative mb-6 w-full max-w-md">
-          <video
-            ref={(el) => {
-              if (el) el.srcObject = videoStream;
-            }}
-            autoPlay
-            muted
-            playsInline
-            className="w-full rounded-2xl border shadow scale-x-[-1]"
-          />
-          <div className="absolute top-3 left-3 bg-red-500 text-white px-3 py-1 rounded-full text-xs shadow">
-            {isRecording ? "🔴 Recording" : "⏸️ Stopped"}
-          </div>
-        </div>
-      )}
+
 
       {/* Controls */}
       <div className="flex flex-col gap-3 w-full max-w-md relative z-10">
